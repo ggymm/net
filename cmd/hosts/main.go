@@ -1,7 +1,6 @@
 package main
 
 import (
-	"net/internet/hosts"
 	"net/pkg/app"
 	"net/pkg/log"
 	"os"
@@ -19,5 +18,4 @@ func init() {
 }
 
 func main() {
-	hosts.GetDNS()
 }
