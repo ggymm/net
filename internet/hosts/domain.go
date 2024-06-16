@@ -2,53 +2,41 @@ package hosts
 
 import (
 	"net"
+	"time"
 
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcap"
 	"github.com/pkg/errors"
 
 	"net/pkg/log"
 )
 
 var (
-	device = "以太网"
+	//device = "eth0"
+	device = "WLAN"
 	github = []string{
 		"https://github.com/",
 	}
 )
 
-func netInfo() (ip net.IP, mac net.HardwareAddr) {
-	ifs, err := net.Interfaces()
+func sendPack(ip net.IP, mac net.HardwareAddr) {
+	var (
+		snapLen = int32(1024)
+		timeout = 10 * time.Second
+	)
+	handle, err := pcap.OpenLive(device, snapLen, false, timeout)
 	if err != nil {
-		log.Error().Err(errors.WithStack(err)).Msg("query interface error")
+		log.Error().Err(errors.WithStack(err)).Msg("open device error")
 		return
 	}
-	for _, i := range ifs {
-		if i.Name == device {
-			// 获取 ip 地址
-			addrs, err1 := i.Addrs()
-			if err1 != nil {
-				log.Error().Err(errors.WithStack(err1)).Msg("query interface address error")
-				return
-			}
-			for _, addr := range addrs {
-				ipn, ok := addr.(*net.IPNet)
-				if ok && !ipn.IP.IsLoopback() {
-					ip = ipn.IP.To4()
-					break
-				}
-			}
+	defer handle.Close()
 
-			// 获取 mac 地址
-			mac = i.HardwareAddr
-			break
-		}
+	// 以太网帧头部
+	eth := &layers.Ethernet{
+		SrcMAC: mac,
 	}
-	return
-}
-
-func sendPack() {
-
+	println(eth)
 }
 
 func ReadIps(domain, nameserver string) {
-
 }

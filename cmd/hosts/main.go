@@ -1,9 +1,10 @@
 package main
 
 import (
+	"os"
+
 	"net/pkg/app"
 	"net/pkg/log"
-	"os"
 )
 
 func init() {

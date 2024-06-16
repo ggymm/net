@@ -1,10 +1,11 @@
 package hosts
 
 import (
-	"net/pkg/app"
-	"net/pkg/log"
 	"os"
 	"testing"
+
+	"net/pkg/app"
+	"net/pkg/log"
 )
 
 func Test_GetDns(t *testing.T) {

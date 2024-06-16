@@ -1,11 +1,12 @@
 package log
 
 import (
+	"io"
+	"os"
+
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/pkgerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"io"
-	"os"
 )
 
 const timeFormat = "2006-01-02 15:04:05.000"
