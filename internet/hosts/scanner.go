@@ -12,8 +12,12 @@ import (
 )
 
 type Scanner struct {
-	gwIp  net.IP           // 网关 ip 地址
-	gwMac net.HardwareAddr // 网关 mac 地址
+	dev string
+
+	loIp net.IP           // 本地 ip 地址
+	loHw net.HardwareAddr // 本地 mac 地址
+	gwIp net.IP           // 网关 ip 地址
+	gwHw net.HardwareAddr // 网关 mac 地址
 
 	handle  *pcap.Handle
 	options gopacket.SerializeOptions
@@ -28,30 +32,27 @@ func NewScanner() *Scanner {
 	}
 }
 
-func (s *Scanner) Init(d Device) {
-	s.netInfo(d)
+func (s *Scanner) Init(d Device) error {
+	s.dev = d.Name
+	s.loIp = d.IpAddr
+	s.loHw = d.HwAddr
+	return s.netInfo(d)
 }
 
-func (s *Scanner) netInfo(d Device) {
-	var (
-		err    error
-		srcIp  = d.IpAddr
-		srcMac = d.HwAddr
-	)
-
+func (s *Scanner) netInfo(d Device) (err error) {
 	// 获取网关 mac 地址
-	s.gwIp, err = ParseGateway(srcIp)
+	s.gwIp, err = ParseGateway(s.loIp)
 	if err != nil {
 		log.Error().
-			Str("1.dev", d.Name).
-			Str("2.srcIp", srcIp.String()).
-			Str("3.srcMac", srcMac.String()).
+			Str("1.dev", s.dev).
+			Str("2.loIp", s.loIp.String()).
+			Str("3.loHw", s.loHw.String()).
 			Err(errors.WithStack(err)).Msg("parse gateway ip error")
 		return
 	}
 
-	eth := &layers.Ethernet{
-		SrcMAC:       srcMac,
+	en := &layers.Ethernet{
+		SrcMAC:       s.loHw,
 		DstMAC:       net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 		EthernetType: layers.EthernetTypeARP,
 	}
@@ -63,40 +64,26 @@ func (s *Scanner) netInfo(d Device) {
 		ProtAddressSize:   4,
 		DstHwAddress:      []byte{0, 0, 0, 0, 0, 0},
 		DstProtAddress:    []byte(s.gwIp),
-		SourceHwAddress:   []byte(srcMac),
-		SourceProtAddress: []byte(srcIp),
+		SourceHwAddress:   []byte(s.loHw),
+		SourceProtAddress: []byte(s.loIp),
 	}
 
-	s.handle, err = pcap.OpenLive(d.DevName, 100, true, pcap.BlockForever)
+	s.handle, err = pcap.OpenLive(s.dev, 65535, true, pcap.BlockForever)
 	if err != nil {
 		log.Error().
-			Str("1.dev", d.Name).
-			Str("2.name", d.DevName).
 			Err(errors.WithStack(err)).Msg("open device error")
 		return
 	}
-	buf := gopacket.NewSerializeBuffer()
-	err = gopacket.SerializeLayers(buf, s.options, eth, arp)
+	err = s.sendPacket(en, arp)
 	if err != nil {
 		log.Error().
-			Str("1.dev", d.Name).
-			Str("2.name", d.DevName).
-			Str("3.gwIp", s.gwIp.String()).
-			Str("4.srcIp", srcIp.String()).
-			Str("5.srcMac", srcMac.String()).
-			Err(errors.WithStack(err)).Msg("serialize arp packet error")
-	}
-	err = s.handle.WritePacketData(buf.Bytes())
-	if err != nil {
-		log.Error().
-			Str("1.dev", d.Name).
-			Str("2.name", d.DevName).
-			Str("3.gwIp", s.gwIp.String()).
-			Str("4.srcIp", srcIp.String()).
-			Str("5.srcMac", srcMac.String()).
+			Str("1.dev", s.dev).
+			Str("2.loIp", s.loIp.String()).
+			Str("3.loHw", s.loHw.String()).
+			Str("4.gwIp", s.gwIp.String()).
 			Err(errors.WithStack(err)).Msg("write packet data error")
 	}
-	defer s.handle.Close()
+	//defer s.handle.Close()
 
 	for {
 		var data []byte
@@ -106,11 +93,10 @@ func (s *Scanner) netInfo(d Device) {
 				continue
 			}
 			log.Error().
-				Str("1.dev", d.Name).
-				Str("2.name", d.DevName).
-				Str("3.gwIp", s.gwIp.String()).
-				Str("4.srcIp", srcIp.String()).
-				Str("5.srcMac", srcMac.String()).
+				Str("1.dev", s.dev).
+				Str("2.loIp", s.loIp.String()).
+				Str("3.loHw", s.loHw.String()).
+				Str("4.gwIp", s.gwIp.String()).
 				Err(errors.WithStack(err)).Msg("read packet data error")
 			return
 		}
@@ -119,13 +105,28 @@ func (s *Scanner) netInfo(d Device) {
 		if packet == nil {
 			continue
 		}
-		if arpLayer := packet.Layer(layers.LayerTypeARP); arpLayer != nil {
-			arp = arpLayer.(*layers.ARP)
+		if layer := packet.Layer(layers.LayerTypeARP); layer != nil {
+			arp = layer.(*layers.ARP)
 			if arp.Operation == layers.ARPReply && net.IP(arp.SourceProtAddress).Equal(s.gwIp) {
-				s.gwMac = arp.SourceHwAddress
+				s.gwHw = arp.SourceHwAddress
 				break
 			}
 		}
 	}
 	return
+}
+
+func (s *Scanner) sendPacket(l ...gopacket.SerializableLayer) error {
+	buf := gopacket.NewSerializeBuffer()
+	err := gopacket.SerializeLayers(buf, s.options, l...)
+	if err != nil {
+		log.Error().
+			Str("1.dev", s.dev).
+			Str("2.loIp", s.loIp.String()).
+			Str("3.loHw", s.loHw.String()).
+			Str("4.gwIp", s.gwIp.String()).
+			Err(errors.WithStack(err)).Msg("serialize packet error")
+		return err
+	}
+	return s.handle.WritePacketData(buf.Bytes())
 }

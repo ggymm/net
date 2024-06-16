@@ -36,7 +36,6 @@ func (a *App) Devices() []*Device {
 			} else {
 				if n.IP.To4() != nil && !n.IP.IsLoopback() {
 					ret = append(ret, &Device{
-						Name:   i.Name,
 						IpAddr: n.IP.To4(),
 						HwAddr: i.HardwareAddr,
 					})
@@ -61,8 +60,8 @@ func (a *App) Devices() []*Device {
 		}
 		for _, r := range ret {
 			if r.IpAddr.Equal(ip) {
-				r.DevName = dev.Name
-				r.DevDesc = dev.Description
+				r.Name = dev.Name
+				r.Desc = dev.Description
 				break
 			}
 		}

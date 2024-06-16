@@ -6,14 +6,13 @@ import (
 )
 
 type Device struct {
-	Name   string // 设备名称
+	Name string // pcap 设备名称
+	Desc string // pcap 设备描述
+
 	IpAddr net.IP
 	HwAddr net.HardwareAddr
-
-	DevName string // pcap 设备名称
-	DevDesc string // pcap 设备描述
 }
 
 func (d *Device) String() string {
-	return fmt.Sprintf("%s - %s - %s - %s", d.DevDesc, d.IpAddr, d.HwAddr, d.DevName)
+	return fmt.Sprintf("%s - %s - %s - %s", d.Desc, d.IpAddr, d.HwAddr, d.Name)
 }
